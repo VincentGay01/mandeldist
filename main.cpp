@@ -160,32 +160,40 @@ else{
  MPI_Bcast(&buffer,2,MPI_DOUBLE,0,MPI_COMM_WORLD);
  nbPixX=buffer[0];
  nbPixY=buffer[1];
+ bool continu=true ;
 if(rank==1){
-while(true){
+while(continu){
     MPI_Bcast(&buffer,3,MPI_DOUBLE,0,MPI_COMM_WORLD);//depx depy et cameradistance
-   
-  int nombrpixint= nbPixX/(numtasks-2);
-   for(int i=2;i<numtasks-1;i++)
-   {
-    buffer[0]=(i-2)*nombrpixint;
-    buffer[1]=(i-1)*nombrpixint; 
+    if(buffer[2]==-1)
+    {continu=false;}
+    if(continu){
+        int nombrpixint= nbPixX/(numtasks-2);
+    for(int i=2;i<numtasks-1;i++)
+    {
+        buffer[0]=(i-2)*nombrpixint;
+        buffer[1]=(i-1)*nombrpixint; 
 
-    MPI_Send(&buffer,2,MPI_DOUBLE,i,15,MPI_COMM_WORLD); 
+        MPI_Send(&buffer,2,MPI_DOUBLE,i,15,MPI_COMM_WORLD); 
 
 
+    }
+        buffer[0]=(numtasks-3)*nombrpixint;
+        buffer[1]=nbPixX;
+    MPI_Send(&buffer,2,MPI_DOUBLE,numtasks-1,15,MPI_COMM_WORLD); 
    }
-    buffer[0]=(numtasks-3)*nombrpixint;
-    buffer[1]=nbPixX;
-   MPI_Send(&buffer,2,MPI_DOUBLE,numtasks-1,15,MPI_COMM_WORLD); 
+  
 }
 
 }
 else{
-    while(true )
+    while(continu )
     {
         
 
         MPI_Bcast(&buffer,3,MPI_DOUBLE,0,MPI_COMM_WORLD);//depx depy et cameradistance
+         if(buffer[2]==-1)
+    {continu=false;}
+    if(continu){
         depx=buffer[0];
          depy=buffer[1];
          cameraDistance=buffer[2];
@@ -231,6 +239,7 @@ else{
         taby[0]=icr;
         MPI_Send(&taby,icr,MPI_INT,0,12,MPI_COMM_WORLD);
     }
+    }
 }
 
 
@@ -244,10 +253,13 @@ else{
 
 void affichage(void)
 {
+    clock_t start1 = clock();
+    clock_t start2 = clock();
     double tab[3]{depx,depy,cameraDistance};
     MPI_Bcast(&tab,3,MPI_DOUBLE,0,MPI_COMM_WORLD);//depx depy et cameradistance
+    clock_t end2 = clock();
     double st1 = 0;
-    double st2 = 0;
+    double st2 = (double)(end2 - start2)/CLOCKS_PER_SEC;
 	glMatrixMode(GL_MODELVIEW);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glPushMatrix();
@@ -257,11 +269,13 @@ void affichage(void)
     int countx=0;
     int county=0;
         for(int i=2;i<numtasks;i++)
-            {    
+            {    start2 = clock();
                 int taillebuffer=(nbPixX/(numtasks-2)+(int)nbPixX%(numtasks-2))*(int)nbPixY;
                 int buffer[taillebuffer+1];
-                MPI_Recv(&buffer,taillebuffer+1,MPI_INT,i,12,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
                 
+                MPI_Recv(&buffer,taillebuffer+1,MPI_INT,i,12,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+                 end2 = clock();
+                 st2 += (double)(end2 - start2)/CLOCKS_PER_SEC;
                 for(int z=1;z<buffer[0];z++){
                    int y=buffer[z];
                    
@@ -282,7 +296,7 @@ void affichage(void)
                         }
                         
                         glVertex2f(v,w);
-                        clock_t end2 = clock();
+                        
                         county++;
                         
                         if(county==nbPixY){countx++;county=0;}
@@ -293,6 +307,10 @@ void affichage(void)
     glPopMatrix();
   /* on force l'affichage du resultat */
   glFlush();
+  clock_t end1 = clock();
+   st1 = (double)(end1 - start1)/CLOCKS_PER_SEC; 
+  cout<<st1<<" "<<st2<<endl;
+  
 }
 
 //------------------------------------------------------
@@ -323,7 +341,8 @@ void clavier(unsigned char touche,int x,int y)
       glutPostRedisplay();
       break;
     case 'q' : //*la touche 'q' permet de quitter le programme
-    //MPI_Send();// arret a 1 
+    double buffer[3] {0,0,-1}; 
+    MPI_Bcast(&buffer,3,MPI_DOUBLE,0,MPI_COMM_WORLD);
     MPI_Finalize();
       exit(0); //envoie un message a tous le monde de terminer tous les autres processus 0 envoie a 1 de terminer tout les autres process
     }
